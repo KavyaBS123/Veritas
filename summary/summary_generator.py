@@ -7,6 +7,7 @@ from models.conversation_summary import ConversationSummary
 from models.message import Message
 
 from core.openai_client import get_openai_client
+from utils.summary_generator_prompt import SUMMARY_GENERATOR_PROMPT
 
 #LLM Client
 llm_client = get_openai_client()
@@ -15,21 +16,7 @@ llm_client = get_openai_client()
 SUMMARY_MODEL = "gpt-4o-mini"
 MAX_MESSAGES_FROM_SUMMARY = 200
 
-#System prompt
-SUMMARY_SYSTEM_PROMPT = """
-You are a conversation summarization engine.
-
-Your job is to compress a full conversation into a factual, memory-safe summary, keeping the entire context.
-
-Rules:
-- Capture stable user facts (preferences, profile, habits)
-- Keep the context 
-- Capture long-term goals or constraints
-- Do NOT include small talk
-- Do NOT invent information
-- Use neutral third-person tone
-- Keep it concise but complete
-"""
+SUMMARY_TRIGGER_COUNT = 20
 
 
 def generate_summary_prompt(messages: List[str]) -> List[dict]:
@@ -40,7 +27,7 @@ def generate_summary_prompt(messages: List[str]) -> List[dict]:
     conversation_text = "\n".join(messages)
 
     return [
-        {"role": "system", "content": SUMMARY_SYSTEM_PROMPT},
+        {"role": "system", "content": SUMMARY_GENERATOR_PROMPT},
         {
             "role": "user",
             "content": f"""
@@ -60,6 +47,18 @@ def generate_conversation_summary(db: Session, conversation_id: str) -> str:
     """
     Generates and stores a summary for a conversation.
     """
+
+    # total count of msgs in the db
+    total_count = (
+        db.query(Message)
+        .filter(Message.conversation_id == conversation_id)
+        .count()
+    )
+
+    # Trigger condition:
+    if total_count == 0 or total_count % SUMMARY_TRIGGER_COUNT == 0:
+        return ""
+    
     
     # Fetch all past msgs (oldest -> newest)
     messages = (
@@ -79,7 +78,7 @@ def generate_conversation_summary(db: Session, conversation_id: str) -> str:
         for msg in messages
     ]
 
-    #Call llm
+    # Call llm
     prompt = generate_summary_prompt(formatted_messages)
 
     response = llm_client.chat.completions.create(
