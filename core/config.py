@@ -8,7 +8,6 @@ class Settings(BaseSettings):
 
     DATABASE_URL: str
 
-    # ALLOWED_ORIGINS: str
 
     OPENAI_API_KEY: str
 
