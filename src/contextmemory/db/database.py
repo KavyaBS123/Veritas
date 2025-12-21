@@ -4,13 +4,17 @@ from sqlalchemy.ext.declarative import declarative_base
 
 from src.contextmemory.core.config import settings
 
-engine = create_engine(
-    settings.DATABASE_URL
-)
+try:
+    engine = create_engine(
+        settings.DATABASE_URL
+    )
+    with engine.connect() as conn:
+        print("Database connected sucessfully")
+    
+except Exception as e: 
+    print("Failed to connect database")
+    raise e
 
-#debug
-with engine.connect() as conn:
-    print("Connected!")
 
 SessionLocal = sessionmaker(autoflush=False, autocommit=False, bind=engine)
 
@@ -24,6 +28,12 @@ def get_db():
         db.close()
 
 def create_table():
-    #debug
-    import src.contextmemory.db.models
-    Base.metadata.create_all(bind=engine)
+    try:
+        import src.contextmemory.db.models
+
+        Base.metadata.create_all(bind=engine)
+        print("Tables created successfully")
+
+    except Exception as e:
+        print("Error while creating tables")
+        raise e
