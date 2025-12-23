@@ -14,17 +14,7 @@ pip install contextmemory
 
 ### 1. Configure
 
-**Option A: Programmatic (Recommended)**
-```python
-from contextmemory import configure
-
-configure(
-    openai_api_key="sk-...",  # Required
-    database_url="postgresql://...",  # Optional - defaults to SQLite
-)
-```
-
-**Option B: Environment Variables**
+**Environment Variables**
 ```bash
 export OPENAI_API_KEY="sk-..."
 export DATABASE_URL="postgresql://..."  # Optional
@@ -89,12 +79,8 @@ memory.delete(memory_id=1)
 ## Database Support
 
 - **SQLite** (default): No additional setup required
-- **PostgreSQL**: Install with `pip install contextmemory[postgres]`
 
 ## API Reference
-
-### `configure(openai_api_key, database_url=None, debug=False)`
-Initialize the library configuration.
 
 ### `Memory(db: Session)`
 Main memory interface class.
