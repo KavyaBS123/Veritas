@@ -9,6 +9,7 @@ Supports two configuration methods:
 from dataclasses import dataclass
 from typing import Optional
 import os
+from dotenv import load_dotenv
 
 
 @dataclass
@@ -35,12 +36,12 @@ class ContextMemorySettings:
         return f"sqlite:///{db_dir}/memory.db"
 
     def validate(self) -> None:
-        """Validate that required settings are present."""
+        """Validate that essential settings are present."""
         if not self.openai_api_key:
             raise RuntimeError(
                 "OpenAI API key is required. "
                 "Either call configure(openai_api_key='...') or "
-                "set the OPENAI_API_KEY environment variable."
+                "set the OPENAI_API_KEY environment variable in a .env file or shell."
             )
 
 
@@ -80,17 +81,16 @@ def get_settings() -> ContextMemorySettings:
     Get current settings.
     
     If configure() has not been called, attempts to load from environment variables.
-    Raises RuntimeError if OpenAI API key is not available.
     
     Returns:
         ContextMemorySettings instance
-        
-    Raises:
-        RuntimeError: If OpenAI API key is not configured
     """
     global _settings
     
     if _settings is None:
+        # Load .env file if it exists
+        load_dotenv()
+        
         # Try loading from environment variables
         openai_key = os.environ.get("OPENAI_API_KEY")
         database_url = os.environ.get("DATABASE_URL")
@@ -102,8 +102,6 @@ def get_settings() -> ContextMemorySettings:
             debug=debug,
         )
     
-    # Validate before returning
-    _settings.validate()
     return _settings
 
 

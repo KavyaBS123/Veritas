@@ -1,8 +1,8 @@
 # ContextMemory
 
-Long-term memory system for AI conversations - similar to Mem0/Supermemory.
+Long-term memory system for AI conversations.
 
-ContextMemory extracts, stores, and retrieves important facts from conversations, enabling AI assistants to remember user preferences, context, and history across sessions.
+ContextMemory extracts, stores, and retrieves important facts from conversations, enabling AI Agents to remember user preferences, context, and history across sessions.
 
 ## Installation
 

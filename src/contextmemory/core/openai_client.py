@@ -24,6 +24,7 @@ def get_openai_client() -> OpenAI:
     global _client
     if _client is None:
         settings = get_settings()
+        settings.validate()
         _client = OpenAI(api_key=settings.openai_api_key)
     return _client
 
