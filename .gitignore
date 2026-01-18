@@ -40,5 +40,6 @@ test.py
 # Reference files 
 md-files/
 
+test_connections.py
 test_episodic.py
-test_timing.py
+test_extraction_fixes.py

@@ -30,7 +30,7 @@ class ContextMemorySettings:
     # LLM Provider settings
     llm_provider: LLMProvider = "openai"
     openrouter_api_key: Optional[str] = None
-    llm_model: str = "gpt-4o-mini"
+    llm_model: str = "anthropic/claude-sonnet-4.5"
     embedding_model: str = "text-embedding-3-small"
 
     def get_database_url(self) -> str:

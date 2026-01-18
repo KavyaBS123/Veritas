@@ -1,4 +1,5 @@
 import json
+import re
 from typing import List, Dict, Any
 from contextmemory.core.openai_client import get_llm_client
 from contextmemory.core.settings import get_settings
@@ -54,15 +55,39 @@ Extract memory facts (semantic facts and bubbles).
 
     raw_output = response.choices[0].message.content
     
+    # Debug logging
+    if settings.debug:
+        print(f"[DEBUG] Raw LLM output: {raw_output[:500]}...")
     
-    # Parse JSON
+    # Parse JSON - handle markdown code blocks
     try:
-        result = json.loads(raw_output)
+        # Try to extract JSON from markdown code blocks if present
+        json_str = raw_output
+        
+        # Remove markdown code block formatting (```json ... ```)
+        if "```" in json_str:
+            # Find content between code blocks
+            match = re.search(r'```(?:json)?\s*([\s\S]*?)\s*```', json_str)
+            if match:
+                json_str = match.group(1)
+        
+        # Clean up any leading/trailing whitespace
+        json_str = json_str.strip()
+        
+        result = json.loads(json_str)
+        
         # Validate structure
         if "semantic" not in result:
             result["semantic"] = []
         if "bubbles" not in result:
             result["bubbles"] = []
+            
+        if settings.debug:
+            print(f"[DEBUG] Extracted: {len(result['semantic'])} semantic, {len(result['bubbles'])} bubbles")
+            
         return result
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as e:
+        if settings.debug:
+            print(f"[DEBUG] JSON parse error: {e}")
+            print(f"[DEBUG] Attempted to parse: {json_str[:200]}...")
         return {"semantic": [], "bubbles": []}

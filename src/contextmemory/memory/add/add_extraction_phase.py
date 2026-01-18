@@ -14,7 +14,7 @@ def extraction_phase(db: Session, messages: List[dict], conversation_id: int):
 
     # latest msg pair
     if len(messages) < 2:
-        return []
+        return {"semantic": [], "bubbles": []}
     
     user_msg = messages[-2]
     assistant_msg = messages[-1]

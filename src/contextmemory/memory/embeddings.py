@@ -14,10 +14,10 @@ def embed_text(text: str) -> List[float]:
     client = get_embedding_client()
     
     # OpenRouter requires the provider prefix for embedding models
-    if settings.llm_provider == "openrouter":
-        model = f"openai/{settings.embedding_model}"
-    else:
-        model = settings.embedding_model
+    # Only add prefix if not already present
+    model = settings.embedding_model
+    if settings.llm_provider == "openrouter" and not model.startswith("openai/"):
+        model = f"openai/{model}"
     
     response = client.embeddings.create(
         model=model,
