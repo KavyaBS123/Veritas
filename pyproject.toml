@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "contextmemory"
-version = "0.1.3"
+version = "0.2.0"
 description = "Long-term memory system for AI conversations"
 readme = "README.md"
 license = {text = "MIT"}
