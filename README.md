@@ -79,12 +79,12 @@ export DATABASE_URL="postgresql://..."
 ```python
 # Add memories from a conversation
 messages = [
-    {"role": "user", "content": "Hi, I'm Samiksha and I love Python programming"},
+    {"role": "user", "content": "Hi, I'm Kavya and I love Python programming"},
     {"role": "assistant", "content": "Nice to meet you! Python is great."},
 ]
 
 result = memory.add(messages=messages, conversation_id=1)
-# Returns: {'semantic': ['User is named Samiksha', 'User loves Python'], 'bubbles': []}
+# Returns: {'semantic': ['User is named Kavya', 'User loves Python'], 'bubbles': []}
 ```
 
 ### Search Memories
@@ -275,9 +275,3 @@ MIT License - see [LICENSE](LICENSE) file.
 ## Contributing
 
 Contributions welcome! Open an issue or submit a PR.
-
-## Links
-
-- [PyPI Package](https://pypi.org/project/contextmemory/)
-- [GitHub Repository](https://github.com/samiksha0shukla/context-memory)
-- [Issue Tracker](https://github.com/samiksha0shukla/context-memory/issues)
