@@ -244,3 +244,136 @@ def reset_vector_stores() -> None:
     """Clear all cached vector stores. Useful for testing."""
     global _vector_stores
     _vector_stores = {}
+
+
+# ─── Cross-Conversation (Global) Index ───
+
+_global_vector_store: Optional[FAISSVectorStore] = None
+_global_id_to_conv: Dict[int, int] = {}  # memory_id -> conversation_id
+
+
+def get_global_vector_store() -> FAISSVectorStore:
+    """Get or create the global vector store spanning all conversations."""
+    global _global_vector_store, _global_id_to_conv
+    if _global_vector_store is None:
+        _global_vector_store = FAISSVectorStore()
+        # Try to load from disk
+        loaded_store, loaded_conv_map = load_global_index()
+        if loaded_store is not None:
+            _global_vector_store = loaded_store
+            _global_id_to_conv = loaded_conv_map
+    return _global_vector_store
+
+
+def get_global_index_path() -> str:
+    """Get the file path for the global index."""
+    index_dir = os.path.expanduser("~/.contextmemory/indexes")
+    os.makedirs(index_dir, exist_ok=True)
+    return os.path.join(index_dir, "global")
+
+
+def load_global_index():
+    """Load the global index from disk. Returns (store, conv_map) or (None, None) on failure."""
+    path = get_global_index_path()
+    if not os.path.exists(f"{path}.faiss"):
+        return None, None
+    try:
+        store = FAISSVectorStore()
+        store.load(path)
+        with open(f"{path}.conv_map.json", "r") as f:
+            conv_map = {int(k): v for k, v in json.load(f).items()}
+        return store, conv_map
+    except Exception:
+        return None, None
+
+
+def save_global_index() -> None:
+    """Save the global index to disk."""
+    global _global_vector_store, _global_id_to_conv
+    if _global_vector_store is not None:
+        path = get_global_index_path()
+        _global_vector_store.save(path)
+        with open(f"{path}.conv_map.json", "w") as f:
+            json.dump({str(k): v for k, v in _global_id_to_conv.items()}, f)
+
+
+def add_to_global_index(memory_id: int, embedding: List[float], conversation_id: int) -> None:
+    """Add a memory to the global index."""
+    global _global_id_to_conv
+    store = get_global_vector_store()
+    store.add(memory_id, embedding)
+    _global_id_to_conv[memory_id] = conversation_id
+    save_global_index()
+
+
+def remove_from_global_index(memory_id: int) -> None:
+    """Remove a memory from the global index."""
+    global _global_id_to_conv
+    store = get_global_vector_store()
+    store.remove(memory_id)
+    if memory_id in _global_id_to_conv:
+        del _global_id_to_conv[memory_id]
+    save_global_index()
+
+
+def search_global_index(query_embedding: List[float], k: int = 10, exclude_conversation_id: Optional[int] = None) -> List[Dict]:
+    """
+    Search the global index across all conversations.
+    
+    Args:
+        query_embedding: Query vector
+        k: Number of results
+        exclude_conversation_id: Optionally exclude a specific conversation
+        
+    Returns:
+        List of dicts with memory_id, score, and conversation_id
+    """
+    store = get_global_vector_store()
+    if store.index.ntotal == 0:
+        return []
+    
+    vector = np.array([query_embedding], dtype=np.float32)
+    faiss.normalize_L2(vector)
+    k = min(k, store.index.ntotal)
+    
+    scores, indices = store.index.search(vector, k)
+    
+    results = []
+    for score, idx in zip(scores[0], indices[0]):
+        if idx == -1 or idx not in store.reverse_map:
+            continue
+        memory_id = store.reverse_map[idx]
+        conv_id = _global_id_to_conv.get(memory_id)
+        if conv_id is None:
+            continue
+        if exclude_conversation_id is not None and conv_id == exclude_conversation_id:
+            continue
+        results.append({
+            "memory_id": memory_id,
+            "score": float(score),
+            "conversation_id": conv_id
+        })
+    
+    return results
+
+
+def rebuild_global_index_from_db(db) -> FAISSVectorStore:
+    """Rebuild the global index from all conversations in the database."""
+    global _global_vector_store, _global_id_to_conv
+    from contextmemory.db.models.memory import Memory
+    
+    _global_vector_store = FAISSVectorStore()
+    _global_id_to_conv = {}
+    
+    memories = db.query(Memory).filter(
+        Memory.is_active == True,
+        Memory.embedding.isnot(None)
+    ).all()
+    
+    for mem in memories:
+        if mem.embedding:
+            _global_vector_store.add(mem.id, mem.embedding)
+            _global_id_to_conv[mem.id] = mem.conversation_id
+    
+    save_global_index()
+    return _global_vector_store

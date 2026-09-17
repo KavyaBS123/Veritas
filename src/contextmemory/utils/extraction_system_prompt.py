@@ -113,7 +113,7 @@ If you create a bubble, assign importance (0.0 to 1.0):
 Return ONLY valid JSON:
 
 {
-  "semantic": ["User's name is Samiksha", "User prefers dark mode"],
+  "semantic": ["User's name is Kavya", "User prefers dark mode"],
   "bubbles": [
     {"text": "User is debugging JWT validation issue", "importance": 0.8}
   ]

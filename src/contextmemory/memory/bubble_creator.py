@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from contextmemory.db.models.memory import Memory
 from contextmemory.memory.embeddings import embed_text
 from contextmemory.memory.connection_finder import find_connections
-from contextmemory.memory.vector_store import get_vector_store, save_vector_store
+from contextmemory.memory.vector_store import get_vector_store, save_vector_store, add_to_global_index
 
 
 def create_bubbles(
@@ -65,6 +65,8 @@ def create_bubbles(
         
         # Add to FAISS index
         vector_store.add(bubble.id, embedding)
+        # Add to global index
+        add_to_global_index(bubble.id, embedding, conversation_id)
         
         # Find connections (imported from connection_finder.py)
         find_connections(db, bubble, conversation_id)

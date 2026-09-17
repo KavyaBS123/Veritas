@@ -5,11 +5,12 @@ from sqlalchemy.orm import Session
 
 from contextmemory.memory.add.add_extraction_phase import extraction_phase
 from contextmemory.memory.add.add_updation_phase import update_phase
+from contextmemory.memory.consolidation import consolidate_memories, get_consolidation_stats
 
 from contextmemory.memory.embeddings import embed_text
 from contextmemory.db.models.memory import Memory
 from contextmemory.memory.bubble_creator import create_bubbles
-from contextmemory.memory.vector_store import get_vector_store, rebuild_index_from_db, save_vector_store
+from contextmemory.memory.vector_store import get_vector_store, rebuild_index_from_db, save_vector_store, search_global_index, add_to_global_index, remove_from_global_index, rebuild_global_index_from_db
 
 
 class ContextMemory:
@@ -203,11 +204,14 @@ class ContextMemory:
         self.db.commit()
         self.db.refresh(memory)
         
-        # Update FAISS index
+        # Update FAISS index (per-conversation)
         vector_store = get_vector_store(conversation_id)
         vector_store.remove(memory_id)
         vector_store.add(memory_id, new_embedding)
         save_vector_store(conversation_id)
+        
+        # Update global index
+        add_to_global_index(memory_id, new_embedding, conversation_id)
 
         return memory
     
@@ -229,9 +233,117 @@ class ContextMemory:
         memory.is_active = False
         self.db.commit()
         
-        # Remove from FAISS index
+        # Remove from FAISS index (per-conversation)
         vector_store = get_vector_store(conversation_id)
         vector_store.remove(memory_id)
         save_vector_store(conversation_id)
+        
+        # Remove from global index
+        remove_from_global_index(memory_id)
 
         return {"deleted_memory_id": memory_id}
+
+    # consolidate()
+    def consolidate(self, conversation_id: int) -> Dict:
+        """
+        Run memory consolidation: merge similar semantic facts, promote stable bubbles to semantic.
+        
+        Returns:
+            Dict with stats: {"merged": int, "promoted": int, "details": [...]}
+        """
+        return consolidate_memories(self.db, conversation_id)
+
+    # get_consolidation_stats()
+    def get_consolidation_stats(self, conversation_id: int) -> Dict:
+        """
+        Get statistics about consolidation opportunities.
+        
+        Returns:
+            Dict with semantic_count, bubble_count, promotable_bubbles, etc.
+        """
+        return get_consolidation_stats(self.db, conversation_id)
+
+    # search_global() - Cross-conversation search
+    def search_global(self, query: str, limit: int = 10, exclude_conversation_id: int = None) -> Dict:
+        """
+        Search for relevant memories across ALL conversations.
+        
+        Args:
+            query: Search query text
+            limit: Max results
+            exclude_conversation_id: Optionally exclude a specific conversation
+            
+        Returns:
+            Dict with query and results (including conversation_id for each result)
+        """
+        # Generate query embedding
+        query_embedding = embed_text(query)
+        
+        # Search global FAISS index
+        faiss_results = search_global_index(
+            query_embedding=query_embedding,
+            k=limit * 2,
+            exclude_conversation_id=exclude_conversation_id
+        )
+        
+        if not faiss_results:
+            return {"query": query, "results": []}
+        
+        # Fetch Memory objects
+        memory_ids = [r["memory_id"] for r in faiss_results]
+        conv_ids = {r["memory_id"]: r["conversation_id"] for r in faiss_results}
+        faiss_scores = {r["memory_id"]: r["score"] for r in faiss_results}
+        
+        memories = self.db.query(Memory).filter(
+            Memory.id.in_(memory_ids),
+            Memory.is_active == True
+        ).all()
+        
+        if not memories:
+            return {"query": query, "results": []}
+        
+        # Create lookup
+        id_to_mem = {m.id: m for m in memories}
+        
+        # Score with recency and importance
+        now = datetime.now(timezone.utc)
+        scored = []
+        
+        for mem in memories:
+            similarity = faiss_scores.get(mem.id, 0)
+            
+            # Recency decay for bubbles
+            if mem.is_episodic and mem.occurred_at:
+                occurred = mem.occurred_at
+                if occurred.tzinfo is None:
+                    occurred = occurred.replace(tzinfo=timezone.utc)
+                days_ago = (now - occurred).days
+                recency = math.exp(-0.05 * days_ago)
+            else:
+                recency = 1.0
+            
+            importance = mem.importance if mem.importance else 0.5
+            final_score = similarity * importance * recency
+            scored.append((final_score, mem))
+        
+        # Sort and limit
+        scored.sort(key=lambda x: x[0], reverse=True)
+        top_results = scored[:limit]
+        
+        # Format results
+        results = []
+        for score, mem in top_results:
+            results.append({
+                "memory_id": mem.id,
+                "memory": mem.memory_text,
+                "type": "bubble" if mem.is_episodic else "semantic",
+                "conversation_id": conv_ids.get(mem.id),
+                "occurred_at": mem.occurred_at.isoformat() if mem.occurred_at else None,
+                "score": round(score, 4),
+            })
+        
+        return {
+            "query": query,
+            "total": len(results),
+            "results": results
+        }

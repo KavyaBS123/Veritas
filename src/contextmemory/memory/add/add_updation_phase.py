@@ -10,7 +10,7 @@ from contextmemory.db.models.memory import Memory
 from contextmemory.memory.embeddings import embed_text
 from contextmemory.memory.similar_memory_search import search_similar_memories
 from contextmemory.memory.tool_classifier import llm_tool_call
-from contextmemory.memory.vector_store import get_vector_store, save_vector_store
+from contextmemory.memory.vector_store import get_vector_store, save_vector_store, add_to_global_index, remove_from_global_index
 from contextmemory.core.settings import get_settings
 
 
@@ -64,6 +64,8 @@ def update_phase(db: Session, candidate_facts: List[str], conversation_id: int):
             
             # Add to FAISS index
             vector_store.add(memory.id, fact_embedding)
+            # Add to global index
+            add_to_global_index(memory.id, fact_embedding, conversation_id)
             
             if settings.debug:
                 print(f"[DEBUG] Added memory ID {memory.id}")
@@ -80,6 +82,8 @@ def update_phase(db: Session, candidate_facts: List[str], conversation_id: int):
                 
                 # Add updated to FAISS
                 vector_store.add(memory.id, fact_embedding)
+                # Update global index
+                add_to_global_index(memory.id, fact_embedding, conversation_id)
                 
                 if settings.debug:
                     print(f"[DEBUG] Updated memory ID {memory.id}")
@@ -89,6 +93,8 @@ def update_phase(db: Session, candidate_facts: List[str], conversation_id: int):
             if memory:
                 # Remove from FAISS
                 vector_store.remove(memory.id)
+                # Remove from global index
+                remove_from_global_index(memory.id)
                 db.delete(memory)
                 
                 if settings.debug:
@@ -100,6 +106,7 @@ def update_phase(db: Session, candidate_facts: List[str], conversation_id: int):
             if old_memory:
                 # Remove old from FAISS and DB
                 vector_store.remove(old_memory.id)
+                remove_from_global_index(old_memory.id)
                 db.delete(old_memory)
                 
                 if settings.debug:
@@ -119,6 +126,8 @@ def update_phase(db: Session, candidate_facts: List[str], conversation_id: int):
             
             # Add to FAISS index
             vector_store.add(new_memory.id, fact_embedding)
+            # Add to global index
+            add_to_global_index(new_memory.id, fact_embedding, conversation_id)
             
             if settings.debug:
                 print(f"[DEBUG] Added replacement memory ID {new_memory.id}: {text_to_store[:50]}...")
